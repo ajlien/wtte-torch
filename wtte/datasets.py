@@ -9,6 +9,7 @@ from sklearn.pipeline import Pipeline
 from sklearn.compose import ColumnTransformer
 from pathlib import Path
 import pandas as pd
+import numpy as np
 import re
 
 
@@ -35,7 +36,8 @@ class TurbofanDegradationDataset(Dataset):
             unit_ids = [int(self._regex.match(str(x)).group(1))
                         for x in self.directory.glob('*.txt') 
                         if self._regex.match(str(x))]
-        self.df = pd.concat([self.load_unit(i, self.train) for i in unit_ids])
+        self.df = pd.concat([self.load_unit(i, self.train) for i in unit_ids]) \
+            .reset_index(drop=True)
         # Set up feature standardizer and fit
         self.make_standardizer()
         if train:
@@ -49,13 +51,10 @@ class TurbofanDegradationDataset(Dataset):
     def __getitem__(self, i):
         """Note: tensors returned may represent variable length sequences;
            make sure padding is performed in the corresponding DataLoader"""
-        row_i = self.valid_sequence_ends.iloc[i,:] 
-        sequence = self.df[(self.df['unit_id'] == row_i['unit_id']) &
-                           (self.df['run_id']  == row_i['run_id']) &
-                           (self.df['cycle_num'] <= row_i['cycle_num']) &
-                           (self.df['cycle_num'] >  row_i['cycle_num'] - self.max_seq_len)]
-        x = torch.from_numpy(sequence[self.features].values).float()
-        yu = torch.from_numpy(sequence[self.labels].tail(1).values).float()
+        irow = self.valid_sequence_ends[i,:]
+        vals = self.df.loc[irow[0]:irow[1], self.labels + self.features].values
+        x  = torch.from_numpy(vals[: ,2:]).float()
+        yu = torch.from_numpy(vals[-1,:2]).float()
         return x, yu
 
     def load_unit(self, i, train=True):
@@ -67,7 +66,6 @@ class TurbofanDegradationDataset(Dataset):
         however the test sequences do not. The time to event corresponding to the last
         observation in each test sequence appears to be given in the RUL_FD*.txt files.
         """
-
         if train:
             filename_features = 'train_FD{:03d}.txt'.format(i)
         else:
@@ -113,8 +111,25 @@ class TurbofanDegradationDataset(Dataset):
         self.features = kept_features
 
     def determine_valid_sequence_ends(self):
-        """Identify the records in the dataset which may be the end of a sequence"""
-        return self.df.loc[self.df['cycle_num'] >= self.min_seq_len, self.idvars]
+        """Identify the records in the dataset which may be the beginning/end of a sequence
+        Returns an (N x 2) numpy array where the first column is the index of the sequence start
+        and the second column is the index of the sequence end, both inclusive
+        """
+        idx = self.df.index.values
+        # Get, for each row, the index of its run's first row and that of its run's last row
+        grp = self.df \
+            .reset_index() \
+            .groupby(['unit_id','run_id'])['index']
+        run_starts = grp.transform(np.min)
+        run_ends = grp.transform(np.max)
+        # The valid sequence ends are those at least min_seq_len time steps after the run started
+        seq_ends = idx[idx - run_starts + 1 >= self.min_seq_len]
+        run_starts_for_seq_ends = run_starts[seq_ends]
+        # The valid sequence beginnings are the run start if undersized, else max_seq_len before the start
+        seq_starts = np.where(seq_ends - self.max_seq_len + 1 < run_starts_for_seq_ends,
+                              run_starts_for_seq_ends,
+                              seq_ends - self.max_seq_len + 1)
+        return np.stack([seq_starts, seq_ends], -1)
 
     @staticmethod
     def collate_fn(batch):
@@ -123,9 +138,7 @@ class TurbofanDegradationDataset(Dataset):
            :param batch: List of tuples (x, yu)
         """
         x, yu = zip(*batch)
-        batch_x = pad_sequence(x, batch_first=True, padding_value=-99)
-        batch_x = pack_padded_sequence(batch_x, lengths=[seq.shape[0] for seq in x], 
-                                       batch_first=True, enforce_sorted=False)
+        batch_x = pack_sequence(x, enforce_sorted=False)
         batch_y = torch.stack(yu, dim=0)
         batch_y = torch.reshape(batch_y, (-1, 2))
         return batch_x, batch_y
