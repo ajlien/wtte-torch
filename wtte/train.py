@@ -74,7 +74,7 @@ def train(model, train_dataloader, test_dataloader=None, n_epochs=500, lr=0.01, 
                 for x, yu in train_dataloader:
                     x, yu = x.to(device), yu.to(device)
                     ab = model(x)
-                    loss = loss_continuous_weibull_loglik(yu, ab)
+                    loss = wtte_loss(yu, ab)
                     test_loss.append(loss.item())
             msg_out += ', Test Loss {}'.format(np.mean(test_loss))
         logging.info(msg_out)
