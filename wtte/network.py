@@ -85,7 +85,7 @@ class WtteRnnNetwork(WtteNetwork):
 
     def forward(self, x):
         y, _ = self.submodel(x)
-        y, _ = pad_packed_sequence(y, batch_first=True, padding_value=-99)
+        y, _ = pad_packed_sequence(y, batch_first=True, padding_value=0)
         y = self.linear(y)
         y = self.activation(y)
         return y[:,-1,:]
