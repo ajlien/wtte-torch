@@ -31,11 +31,11 @@ class StubModel(nn.Module):
         self.activation = activation
     
     def forward(self, x):
-        y, _ = pad_packed_sequence(x, batch_first=True, padding_value=-99)
+        y, _ = pad_packed_sequence(x, batch_first=True, padding_value=0)
         y = y.new_zeros((y.shape[0], y.shape[1], self.linear.in_features))
         y = self.linear(y)
         y = self.activation(y)
-        return y[:,-1,:]
+        return y
 
 
 class WtteNetwork(nn.Module):
@@ -61,7 +61,7 @@ class WtteNetwork(nn.Module):
         y = self.submodel(x)
         y = self.linear(y)
         y = self.activation(y)
-        return y[:,-1,:]
+        return y
 
 
 class WtteRnnNetwork(WtteNetwork):
@@ -88,4 +88,4 @@ class WtteRnnNetwork(WtteNetwork):
         y, _ = pad_packed_sequence(y, batch_first=True, padding_value=0)
         y = self.linear(y)
         y = self.activation(y)
-        return y[:,-1,:]
+        return y

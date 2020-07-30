@@ -54,7 +54,7 @@ class TurbofanDegradationDataset(Dataset):
         irow = self.valid_sequence_ends[i,:]
         vals = self.df.loc[irow[0]:irow[1], self.labels + self.features].values
         x  = torch.from_numpy(vals[: ,2:]).float()
-        yu = torch.from_numpy(vals[-1,:2]).float()
+        yu = torch.from_numpy(vals[: ,:2]).float()
         return x, yu
 
     def load_unit(self, i, train=True):
@@ -139,6 +139,5 @@ class TurbofanDegradationDataset(Dataset):
         """
         x, yu = zip(*batch)
         batch_x = pack_sequence(x, enforce_sorted=False)
-        batch_y = torch.stack(yu, dim=0)
-        batch_y = torch.reshape(batch_y, (-1, 2))
+        batch_y = pack_sequence(yu, enforce_sorted=False)
         return batch_x, batch_y
