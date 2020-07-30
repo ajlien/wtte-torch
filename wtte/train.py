@@ -7,6 +7,7 @@ import logging
 from wtte.loss import loss_continuous_weibull_loglik, loss_discrete_weibull_loglik
 from wtte.network import StubModel
 import numpy as np
+from tqdm import tqdm
 
 """
 https://www.analyticsvidhya.com/blog/2019/01/guide-pytorch-neural-networks-case-studies/
@@ -25,7 +26,7 @@ def pretrain(model, train_dataloader, optimizer, wtte_loss, n_epochs=25, clip_gr
     for epoch in range(n_epochs):
         pretrain_loss = []
         with torch.set_grad_enabled(True):
-            for x, yu in train_dataloader:
+            for x, yu in tqdm(train_dataloader, ascii=True):
                 x, yu = x.to(device), yu.to(device)
                 optimizer.zero_grad()
                 ab = temp_model(x)
@@ -56,7 +57,7 @@ def train(model, train_dataloader, test_dataloader=None, n_epochs=500, lr=0.01, 
     for epoch in range(n_epochs):
         train_loss = []
         with torch.set_grad_enabled(True):
-            for x, yu in train_dataloader:
+            for x, yu in tqdm(train_dataloader, ascii=True):
                 x, yu = x.to(device), yu.to(device)
                 optimizer.zero_grad()
                 ab = model(x)
@@ -71,7 +72,7 @@ def train(model, train_dataloader, test_dataloader=None, n_epochs=500, lr=0.01, 
         if test_dataloader is not None:
             test_loss = []
             with torch.set_grad_enabled(False):
-                for x, yu in train_dataloader:
+                for x, yu in tqdm(train_dataloader, ascii=True):
                     x, yu = x.to(device), yu.to(device)
                     ab = model(x)
                     loss = wtte_loss(yu, ab)
