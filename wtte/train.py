@@ -14,7 +14,7 @@ from tqdm import tqdm
 https://www.analyticsvidhya.com/blog/2019/01/guide-pytorch-neural-networks-case-studies/
 """
 
-def pretrain(model, train_dataloader, optimizer, wtte_loss, n_epochs=25, clip_grad=None, device=torch.device('cpu'), early_termination=None):
+def pretrain(model, train_dataloader, optimizer, wtte_loss, n_epochs=25, clip_grad=None, device=torch.device('cpu')):
     """Fit the biases for Weibull activation alpha and beta, 
        in practice this substantially helps model convergence
     """
@@ -57,7 +57,7 @@ def train(model, train_dataloader, test_dataloader=None, n_epochs=500, lr=0.01, 
     else:
         raise ValueError('loss_type must be "discrete" or "continuous"')
     if n_epochs_pretrain is not None and n_epochs_pretrain > 0:
-        pretrain(model, train_dataloader, optimizer, wtte_loss, n_epochs=n_epochs_pretrain, clip_grad=clip_grad, device=device, early_termination=None)
+        pretrain(model, train_dataloader, optimizer, wtte_loss, n_epochs=n_epochs_pretrain, clip_grad=clip_grad, device=device)
     logging.info('Begin training')
     for epoch in range(n_epochs):
         train_loss = []
