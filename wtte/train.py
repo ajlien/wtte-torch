@@ -21,14 +21,14 @@ def pretrain(model, train_dataloader, optimizer, wtte_loss, n_epochs=25, clip_gr
     logging.info('Begin pretraining')
     temp_model = StubModel(model.linear, model.activation)
     xinit, yinit = iter(train_dataloader).next()
-    xinit = xinit.to(device)
+    xinit = xinit.to(device=device)
     init_bias = temp_model(xinit)[0,-1,:].view(2).detach().cpu().numpy()
     logging.info('Initial values: alpha {:0.3f}, beta {:0.3f}'.format(init_bias[0], init_bias[1]))
     for epoch in range(n_epochs):
         pretrain_loss = []
         with torch.set_grad_enabled(True):
             for x, yu in tqdm(train_dataloader, ascii=True):
-                x, yu = x.to(device), yu.to(device)
+                x, yu = x.to(device=device), yu.to(device=device)
                 optimizer.zero_grad()
                 ab = temp_model(x)
                 yu, _ = pad_packed_sequence(yu, batch_first=True, padding_value=0)
@@ -48,6 +48,7 @@ def train(model, train_dataloader, test_dataloader=None, n_epochs=500, lr=0.01, 
           loss_type='discrete', n_epochs_pretrain=10, device=torch.device('cpu')):
     """Train a WTTE-RNN model such that error is evaluated at every (non-padded) time step.
     """
+    _ = model.train()
     optimizer = optim.Adam(model.parameters(), lr=lr)
     if loss_type == 'discrete':
         wtte_loss = loss_discrete_weibull_loglik
@@ -62,7 +63,7 @@ def train(model, train_dataloader, test_dataloader=None, n_epochs=500, lr=0.01, 
         train_loss = []
         with torch.set_grad_enabled(True):
             for x, yu in tqdm(train_dataloader, ascii=True):
-                x, yu = x.to(device), yu.to(device)
+                x, yu = x.to(device=device), yu.to(device=device)
                 optimizer.zero_grad()
                 ab = model(x)
                 yu, _ = pad_packed_sequence(yu, batch_first=True, padding_value=0)
@@ -78,7 +79,7 @@ def train(model, train_dataloader, test_dataloader=None, n_epochs=500, lr=0.01, 
             test_loss = []
             with torch.set_grad_enabled(False):
                 for x, yu in tqdm(train_dataloader, ascii=True):
-                    x, yu = x.to(device), yu.to(device)
+                    x, yu = x.to(device=device), yu.to(device=device)
                     ab = model(x)
                     yu, _ = pad_packed_sequence(yu, batch_first=True, padding_value=0)
                     loss = wtte_loss(yu, ab)
