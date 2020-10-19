@@ -58,12 +58,12 @@ def pretrain(model, train_dataloader, optimizer, wtte_loss, n_epochs=25, clip_gr
     logging.info('Pretrained values: alpha {:0.3f}, beta {:0.3f}'.format(init_bias[0], init_bias[1]))
 
 
-def train(model, train_dataloader, test_dataloader=None, n_epochs=500, lr=0.01, clip_grad=None, 
+def train(model, train_dataloader, test_dataloader=None, n_epochs=500, optimizer=None, clip_grad=None, 
           loss_type='discrete', n_epochs_pretrain=10, device=torch.device('cpu'), historian: Historian = None):
-    """Train a WTTE-RNN model such that error is evaluated at every (non-padded) time step.
-    """
+    """Train a WTTE-RNN model such that error is evaluated at every (non-padded) time step."""
+    if optimizer is None:
+        optimizer = optim.Adam(model.parameters(), lr=0.01)  # Default optimizer
     _ = model.train()
-    optimizer = optim.Adam(model.parameters(), lr=lr)
     if loss_type == 'discrete':
         wtte_loss = loss_discrete_weibull_loglik
     elif loss_type == 'continuous':
