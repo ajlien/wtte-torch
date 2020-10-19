@@ -23,11 +23,23 @@ class TurbofanDegradationDataset(Dataset):
     # Identify which unit IDs are represented in provided files in the directory
     _regex = re.compile(r'^.*train_FD0*(\d+).txt$')
 
-    def __init__(self, directory, train=True, unit_ids=None, min_seq_len=5, max_seq_len=100):
+    def __init__(self, directory, train=True, unit_ids=None, min_seq_len=5, max_seq_len=100,
+                 device=None):
+        """
+        :param directory: Str location of data directory.
+        :param train: Boolean takes True if data is for training and therefore should be used
+            to fit the parameters for centering and rescaling features.
+        :param unit_ids: List of turbine unit IDs to include, or None to include all in directory.
+        :param min_seq_len: Int minimum sequence length to sample from.
+        :param max_seq_len: Int maximum sequence length to sample from.
+        :param device: Str takes None for original pandas.DataFrame implementation of data structure,
+            'cuda' to store data on GPU as a torch.Tensor, or 'cpu' to store data in memory as a torch.Tensor.
+        """
         self.directory = Path(directory)
         self.train = train
         self.min_seq_len = min_seq_len
         self.max_seq_len = max_seq_len
+        self.device = device
         self.sensor_cols = ['sensor_{:02d}'.format(j+1) for j in range(21)]
         self.features = ['os_1','os_2','os_3'] + self.sensor_cols
         self.idvars = ['unit_id','run_id','cycle_num']
@@ -44,6 +56,11 @@ class TurbofanDegradationDataset(Dataset):
             self.standardize(self)
         # Get valid sequence endpoints for examples
         self.valid_sequence_ends = self.determine_valid_sequence_ends()
+        # Move data to GPU if appropriate
+        if device is not None:
+            self.tensor = self.df_to_tensor()
+        else:
+            self.tensor = None
 
     def __len__(self):
         return self.valid_sequence_ends.shape[0]
@@ -52,9 +69,13 @@ class TurbofanDegradationDataset(Dataset):
         """Note: tensors returned may represent variable length sequences;
            make sure padding is performed in the corresponding DataLoader"""
         irow = self.valid_sequence_ends[i,:]
-        vals = self.df.loc[irow[0]:irow[1], self.labels + self.features].values
-        x  = torch.from_numpy(vals[: ,2:]).float()
-        yu = torch.from_numpy(vals[: ,:2]).float()
+        if self.device is not None:
+            x  = self.tensor[0][irow[0]:irow[1]]
+            yu = self.tensor[1][irow[0]:irow[1]]
+        else:
+            vals = self.df.loc[irow[0]:irow[1], self.labels + self.features].values
+            x  = torch.from_numpy(vals[: ,2:]).float()
+            yu = torch.from_numpy(vals[: ,:2]).float()
         return x, yu
 
     def load_unit(self, i, train=True):
@@ -130,6 +151,13 @@ class TurbofanDegradationDataset(Dataset):
                               run_starts_for_seq_ends,
                               seq_ends - self.max_seq_len + 1)
         return np.stack([seq_starts, seq_ends], -1)
+
+    def df_to_tensor(self):
+        """Move the sequence data to a pair of torch.Tensors on the device for faster loading."""
+        return (
+            torch.from_numpy(self.df[self.features].values).float().to(self.device),
+            torch.from_numpy(self.df[self.labels].values).float().to(self.device)
+        )
 
     @staticmethod
     def collate_fn(batch):

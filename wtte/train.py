@@ -8,7 +8,21 @@ import logging
 from wtte.loss import loss_continuous_weibull_loglik, loss_discrete_weibull_loglik
 from wtte.network import StubModel
 import numpy as np
+import pandas as pd
 from tqdm import tqdm
+
+class Historian(object):
+    """Helper class that tracks loss metrics over training epochs.
+    This facilitates comparing performance and convergence rates for different training hyperparameters.
+    """
+    def __init__(self):
+        self.data = dict()
+    
+    def add_item(self, epoch: int, train_loss: float = np.nan, test_loss: float = np.nan):
+        self.data[epoch] = {'train_loss': train_loss, 'test_loss': test_loss}
+
+    def to_table(self):
+        return pd.DataFrame.from_dict(self.data, orient='index')
 
 """
 https://www.analyticsvidhya.com/blog/2019/01/guide-pytorch-neural-networks-case-studies/
@@ -44,12 +58,12 @@ def pretrain(model, train_dataloader, optimizer, wtte_loss, n_epochs=25, clip_gr
     logging.info('Pretrained values: alpha {:0.3f}, beta {:0.3f}'.format(init_bias[0], init_bias[1]))
 
 
-def train(model, train_dataloader, test_dataloader=None, n_epochs=500, lr=0.01, clip_grad=None, 
-          loss_type='discrete', n_epochs_pretrain=10, device=torch.device('cpu')):
-    """Train a WTTE-RNN model such that error is evaluated at every (non-padded) time step.
-    """
+def train(model, train_dataloader, test_dataloader=None, n_epochs=500, optimizer=None, clip_grad=None, 
+          loss_type='discrete', n_epochs_pretrain=10, device=torch.device('cpu'), historian: Historian = None):
+    """Train a WTTE-RNN model such that error is evaluated at every (non-padded) time step."""
+    if optimizer is None:
+        optimizer = optim.Adam(model.parameters(), lr=0.01)  # Default optimizer
     _ = model.train()
-    optimizer = optim.Adam(model.parameters(), lr=lr)
     if loss_type == 'discrete':
         wtte_loss = loss_discrete_weibull_loglik
     elif loss_type == 'continuous':
@@ -85,5 +99,12 @@ def train(model, train_dataloader, test_dataloader=None, n_epochs=500, lr=0.01, 
                     loss = wtte_loss(yu, ab)
                     test_loss.append(loss.item())
             msg_out += ', Test Loss {}'.format(np.mean(test_loss))
+        else:
+            test_loss = np.nan
+        
+        # Store the epoch losses in Historian if provided
+        if historian is not None:
+            historian.add_item(epoch, np.mean(train_loss), np.mean(test_loss))
+            
         logging.info(msg_out)
     
